@@ -94,6 +94,9 @@ function toast(t){var e=document.createElement("div");e.className="tst";e.textCo
 function today(){var d=new Date();return d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate())}
 function mkey(){return cur.getFullYear()+"-"+z(cur.getMonth()+1)}
 function dim(){return new Date(cur.getFullYear(),cur.getMonth()+1,0).getDate()}
+function bdue(b,k){return b.due||(k+"-"+z(Math.min(b.day,new Date(+k.slice(0,4),+k.slice(5,7),0).getDate())))}
+function dfmt(d){var p=d.split("-");return p[2]+"/"+p[1]}
+function shiftm(d){var p=d.split("-"),dt=new Date(+p[0],+p[1],1),l=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate();return dt.getFullYear()+"-"+z(dt.getMonth()+1)+"-"+z(Math.min(+p[2],l))}
 function shrink(f){return new Promise(function(res){var u=URL.createObjectURL(f),i=new Image();i.onload=function(){var k=Math.min(1,900/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext("2d").drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c.toDataURL("image/jpeg",.65))};i.onerror=function(){res(null)};i.src=u})}
 function fmt(el){var v=parseInt(el.value.replace(/\D/g,"")||"0",10);el.value=v?v.toLocaleString("vi-VN"):""}
 function num(el){return parseInt(el.value.replace(/\D/g,"")||"0",10)}
@@ -132,7 +135,7 @@ return '<div class="card"><b>Chi tiêu theo danh mục</b>'+svg+lg+'</div><div c
 
 /* ---------- Kế hoạch ---------- */
 function vPlan(m){
-var k=mkey(),B=(bills[k]||[]).slice().sort(function(a,b){return a.day-b.day}),N=dim(),td=today(),isCur=td.indexOf(k)===0,dn=isCur?+td.slice(8):(td<k+"-01"?0:N);
+var k=mkey(),B=(bills[k]||[]).slice().sort(function(a,b){var x=bdue(a,k),y=bdue(b,k);return x<y?-1:x>y?1:0}),N=dim(),td=today(),isCur=td.indexOf(k)===0,dn=isCur?+td.slice(8):(td<k+"-01"?0:N);
 var bt=B.reduce(function(s,b){return s+b.a},0),bud=set.bud||0,toEarn=Math.max(0,bt+bud-m.fix),base=Math.round(toEarn/N);
 var ern={},tot=0;m.L.forEach(function(e){if(e.k&&look(e)[2]!==1){ern[e.d]=(ern[e.d]||0)+e.a;tot+=e.a}});
 var carry=0,rows="",tT=0,tE=0;
@@ -143,7 +146,7 @@ var h="";
 if(!toEarn)h+='<section class="sum"><small>Kế hoạch tháng này</small><h2>Đã đủ 🎉</h2><div class="mu" style="color:#fff">Thu nhập cố định đã đủ cho khoản phải trả và sinh hoạt.</div></section>';
 else if(isCur)h+='<section class="sum"><small>Hôm nay cần kiếm</small><h2>'+money(tT)+'</h2><div>Đã kiếm '+money(tE)+" · còn thiếu "+money(Math.max(0,tT-tE))+'</div><button class="go" data-a="ai">+ Ghi thu nhập hôm nay</button></section>';
 else h+='<section class="sum"><small>Cần kiếm thêm cả tháng</small><h2>'+money(toEarn)+"</h2><div>≈ "+money(base)+" mỗi ngày</div></section>";
-var tips=[],avail=m.inn-bt-m.out,rem=isCur?N-dn+1:0,soon=B.filter(function(b){var dd=k+"-"+z(Math.min(b.day,N));return !b.paid&&isCur&&dd>=td&&dd<=k+"-"+z(Math.min(N,dn+3))});
+var x3=new Date();x3.setDate(x3.getDate()+3);var lim=x3.getFullYear()+"-"+z(x3.getMonth()+1)+"-"+z(x3.getDate()),tips=[],avail=m.inn-bt-m.out,rem=isCur?N-dn+1:0,soon=B.filter(function(b){var dd=bdue(b,k);return !b.paid&&dd>=td&&dd<=lim});
 tips.push("Khoản phải trả "+money(bt)+(bud?" + sinh hoạt "+money(bud):"")+" = cần "+money(bt+bud)+".");
 if(m.fix)tips.push("Đã có thu nhập cố định (lương, trợ cấp) "+money(m.fix)+".");
 if(toEarn)tips.push("Cần kiếm thêm "+money(toEarn)+", khoảng "+money(base)+" mỗi ngày. Đã kiếm "+money(tot)+", còn thiếu "+money(Math.max(0,toEarn-tot))+".");
@@ -153,7 +156,7 @@ if(soon.length)tips.push("Sắp đến hạn: "+soon.map(function(b){return esc(
 h+='<div class="card"><b>Gợi ý</b><ul>'+tips.map(function(t){return"<li>"+t+"</li>"}).join("")+"</ul></div>";
 h+='<div class="card"><b>Ngân sách sinh hoạt dự kiến trong tháng</b><input id="bud" class="f" inputmode="numeric" placeholder="VD: 3.000.000" value="'+(bud?bud.toLocaleString("vi-VN"):"")+'" style="margin:0"></div>';
 h+='<div class="day" style="margin-top:6px"><span><b>Khoản phải trả tháng này</b></span><span>'+money(bt)+"</span></div>";
-B.forEach(function(b){var dd=k+"-"+z(Math.min(b.day,N)),od=!b.paid&&dd<td;h+='<div class="bl'+(od?" od":"")+'"><button class="chk" data-a="pay" data-id="'+b.id+'">'+(b.paid?"✅":"⬜")+'</button><div class="m"><b>'+esc(b.n)+"</b><small>Hạn "+z(Math.min(b.day,N))+"/"+k.slice(5)+(od?" · quá hạn":"")+'</small></div><div class="p">'+money(b.a)+'</div><button class="x" data-a="del" data-id="'+b.id+'">✕</button></div>'});
+B.forEach(function(b){var dd=bdue(b,k),od=!b.paid&&dd<td;h+='<div class="bl'+(od?" od":"")+'"><button class="chk" data-a="pay" data-id="'+b.id+'">'+(b.paid?"✅":"⬜")+'</button><div class="m"><b>'+esc(b.n)+"</b><small>Hạn "+dfmt(dd)+(od?" · quá hạn":"")+'</small></div><div class="p">'+money(b.a)+'</div><button class="x" data-a="del" data-id="'+b.id+'">✕</button></div>'});
 h+='<button class="sec" data-a="nb">+ Thêm khoản phải trả</button><button class="sec" data-a="cp">Sao chép từ tháng trước</button>';
 h+='<div class="day" style="margin-top:18px"><span><b>Checklist kiếm tiền theo ngày</b></span></div><div class="card">'+rows+'<p class="mu" style="margin:8px 0 0">Ngày nào kiếm thiếu sẽ được cộng dồn sang ngày sau. Chỉ tính thu nhập "Làm thêm" và "Khác".</p></div>';
 return h}
@@ -176,7 +179,7 @@ else if(a==="nb")newBill();
 else if(a==="pay"){(bills[k]||[]).forEach(function(b){if(b.id===id)b.paid=!b.paid});save();render()}
 else if(a==="del"){if(t.textContent==="✕"){t.textContent="Xoá?";return}bills[k]=(bills[k]||[]).filter(function(b){return b.id!==id});save();render()}
 else if(a==="cp"){var pk=new Date(cur.getFullYear(),cur.getMonth()-1,1),key=pk.getFullYear()+"-"+z(pk.getMonth()+1),src=bills[key]||[];if(!src.length){toast("Tháng trước chưa có khoản nào");return}
-bills[k]=(bills[k]||[]).concat(src.map(function(b){return{id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),n:b.n,a:b.a,day:b.day,paid:false}}));save();render();toast("Đã sao chép "+src.length+" khoản")}};
+bills[k]=(bills[k]||[]).concat(src.map(function(b){return{id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),n:b.n,a:b.a,due:shiftm(bdue(b,key)),paid:false}}));save();render();toast("Đã sao chép "+src.length+" khoản")}};
 
 /* ---------- thêm giao dịch ---------- */
 function add(kind,pre){
@@ -209,13 +212,13 @@ $("#cl").onclick=closeSheet;
 $("#del").onclick=function(){if(!arm){arm=true;this.textContent="Chạm lần nữa để xoá";return}ex=ex.filter(function(x){return x.id!==id});save();idb("del",id);closeSheet();render()}}
 
 /* ---------- khoản phải trả ---------- */
-function newBill(){
-sheet('<h3>Thêm khoản phải trả</h3><div class="qs">'+["Tiền nhà","Trả góp","Thẻ tín dụng","Điện nước","Internet","Học phí"].map(function(n){return '<button class="chip" data-n="'+n+'">'+n+"</button>"}).join("")+'</div><input id="bn" class="f" placeholder="Tên khoản" maxlength="40"><input id="ba" class="amt" inputmode="numeric" placeholder="Số tiền"><p class="mu" style="margin:6px 0">Hạn trả vào ngày nào trong tháng?</p><input id="bd" class="f" type="number" min="1" max="31" inputmode="numeric" placeholder="VD: 5"><button class="pri" id="bs">Lưu</button>');
+function newBill(){var td0=today(),dd0=td0.indexOf(mkey())===0?td0:mkey()+"-01";
+sheet('<h3>Thêm khoản phải trả</h3><div class="qs">'+["Tiền nhà","Trả góp","Thẻ tín dụng","Điện nước","Internet","Học phí"].map(function(n){return '<button class="chip" data-n="'+n+'">'+n+"</button>"}).join("")+'</div><input id="bn" class="f" placeholder="Tên khoản" maxlength="40"><input id="ba" class="amt" inputmode="numeric" placeholder="Số tiền"><p class="mu" style="margin:6px 0">Hạn trả (có thể là đầu tháng sau)</p><input id="bd" class="f" type="date" value="'+dd0+'"><button class="pri" id="bs">Lưu</button>');
 $$("#shc .chip",function(b){b.onclick=function(){$("#bn").value=b.getAttribute("data-n")}});
 $("#ba").oninput=function(){fmt(this)};
-$("#bs").onclick=function(){var n=$("#bn").value.trim(),a=num($("#ba")),d=parseInt($("#bd").value,10);
-if(!n||!a||!(d>=1&&d<=31)){toast("Nhập đủ tên, số tiền và ngày hạn");return}
-var k=mkey();(bills[k]=bills[k]||[]).push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),n:n,a:a,day:d,paid:false});save();closeSheet();render()}}
+$("#bs").onclick=function(){var n=$("#bn").value.trim(),a=num($("#ba")),d=$("#bd").value;
+if(!n||!a||!d){toast("Nhập đủ tên, số tiền và ngày hạn");return}
+var k=mkey();(bills[k]=bills[k]||[]).push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),n:n,a:a,due:d,paid:false});save();closeSheet();render()}}
 
 /* ---------- cài đặt ---------- */
 $("#gear").onclick=function(){
