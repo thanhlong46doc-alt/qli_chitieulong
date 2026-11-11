@@ -109,6 +109,7 @@ function grp(e){return e.g||look(e)[2]}
 function tag(e){return e.k?(look(e)[2]===1?"Thu cố định":"Kiếm thêm"):(grp(e)==="cd"?"Cố định":"Phát sinh")}
 function sheet(h){$("#shc").innerHTML=h;$("#sh").hidden=false}
 function closeSheet(){$("#sh").hidden=true;$("#shc").innerHTML=""}
+$("#shc").onclick=function(ev){var t=ev.target.closest("[data-zf]");if(!t)return;var el=$("#"+t.getAttribute("data-zf")),v=num(el)*1000;el.value=v?v.toLocaleString("vi-VN"):"";el.focus()};
 $("#sh").onclick=function(e){if(e.target===$("#sh"))closeSheet()};
 
 /* ---------- dữ liệu tháng ---------- */
@@ -141,13 +142,13 @@ return h}
 
 /* ---------- Kế hoạch: tính toán ---------- */
 function calc(m){
-var k=mkey(),N=dim(),td=today(),isCur=td.indexOf(k)===0,dn=isCur?+td.slice(8):(td<k+"-01"?0:N),F=m.fix,i;
+var k=mkey(),N=dim(),td=today(),isCur=td.indexOf(k)===0,dn=isCur?+td.slice(8):(td<k+"-01"?0:N),F=Math.max(0,m.fix-m.out),xs=Math.max(0,m.out-m.fix),i;
 var B=(bills[k]||[]).slice().sort(function(a,b){var x=bdue(a,k),y=bdue(b,k);return x<y?-1:x>y?1:0});
 var nb=B.map(function(b){var due=bdue(b,k),dd=due.indexOf(k)===0?+due.slice(8):(due<k+"-01"?1:N),c=Math.min(F,b.a);F-=c;return{b:b,due:due,dd:dd,net:b.a-c}});
 var e=[],r=[];for(i=0;i<=N+1;i++){e[i]=0;r[i]=0}
 m.L.forEach(function(x){if(x.k&&look(x)[2]!==1)e[+x.d.slice(8)]+=x.a});
 nb.forEach(function(o){for(var j=1;j<=o.dd;j++)r[j]+=o.net/o.dd});
-function rem(upTo){var E=0,j;for(j=1;j<=upTo;j++)E+=e[j];return nb.map(function(o){var c=Math.min(E,o.net);E-=c;return o.b.paid?0:o.net-c})}
+function rem(upTo){var E=0,j;for(j=1;j<=upTo;j++)E+=e[j];E=Math.max(0,E-xs);return nb.map(function(o){var c=Math.min(E,o.net);E-=c;return o.b.paid?0:o.net-c})}
 var days=[],sur=[];
 for(i=1;i<=dn;i++){var d=e[i]-r[i];days[i]={t:r[i],e:e[i],got:0,from:[],gave:0};if(d>0.5)sur.push({i:i,a:d})}
 for(i=1;i<=dn;i++){var D=days[i],need=D.t-D.e;if(need<=0.5)continue;
@@ -155,7 +156,7 @@ while(need>0.5&&sur.length){var s=sur[0],u=Math.min(s.a,need);s.a-=u;need-=u;D.g
 var all=rem(dn),prev=dn>=1?rem(dn-1):all,T=0;
 nb.forEach(function(o,ix){if(dn>=1&&o.dd>=dn)T+=prev[ix]/(o.dd-dn+1)});
 function fut(j){var s=0;nb.forEach(function(o,ix){if(o.dd>dn&&j<=o.dd)s+=all[ix]/(o.dd-dn)});return s}
-return{k:k,N:N,td:td,isCur:isCur,dn:dn,nb:nb,e:e,days:days,rem:all,T:Math.ceil(T/1000)*1000,fut:fut}}
+return{k:k,N:N,td:td,isCur:isCur,dn:dn,nb:nb,e:e,days:days,rem:all,T:Math.ceil(T/1000)*1000,fut:fut,xs:xs}}
 
 /* ---------- Kế hoạch: hiển thị ---------- */
 function vPlan(m){
@@ -169,7 +170,7 @@ else if(isCur)h+='<section class="sum"><small>Hôm nay cần kiếm</small><h2>'
 else h+='<section class="sum"><small>Cần kiếm thêm cả tháng</small><h2>'+money(toEarn)+"</h2><div>Còn thiếu "+money(left)+"</div></section>";
 var x3=new Date();x3.setDate(x3.getDate()+3);var lim=x3.getFullYear()+"-"+z(x3.getMonth()+1)+"-"+z(x3.getDate()),tips=[],avail=m.inn-bt-m.out,rem=isCur?N-dn+1:0;
 var soon=B.filter(function(o){return !o.b.paid&&o.due>=td&&o.due<=lim});
-tips.push("Khoản phải trả tháng này: "+money(bt)+(m.fix?", đã có thu nhập cố định "+money(m.fix)+" trừ dần vào các khoản hạn sớm nhất":"")+".");
+tips.push("Khoản phải trả tháng này: "+money(bt)+".");if(m.fix)tips.push("Thu nhập cố định "+money(m.fix)+", đã chi "+money(m.out)+(m.fix>=m.out?". Phần dư "+money(m.fix-m.out)+" được trừ dần vào các khoản hạn sớm nhất.":". Chi tiêu đã vượt thu nhập cố định "+money(m.out-m.fix)+", phần vượt này trừ vào tiền bạn kiếm thêm."));
 if(toEarn)tips.push("Cần kiếm thêm "+money(toEarn)+". Mỗi khoản được chia đều cho các ngày từ đầu tháng đến ngày hạn, nên khoản hạn sớm có mức cần kiếm mỗi ngày cao hơn.");
 if(isCur&&(m.inn||bt))tips.push(avail>=0?"Sau khi trừ khoản phải trả, bạn có thể chi tối đa khoảng "+money(avail/rem)+" mỗi ngày đến hết tháng.":"Thu nhập đã có đang thiếu "+money(-avail)+" so với khoản phải trả và đã chi. Hạn chế chi phát sinh.");
 if(m.out&&m.g.ps/m.out>.3)tips.push("Chi phát sinh chiếm "+Math.round(m.g.ps/m.out*100)+"% chi tiêu, nên giảm bớt ăn ngoài, mua sắm, giải trí.");
@@ -243,7 +244,7 @@ function paint(p){var l=kind?INC:CATS;cat=(l.filter(function(c){return c[0]===p}
 $("#cg").innerHTML=l.map(function(c){return '<button data-c="'+c[0]+'" class="'+(c[0]===cat?"on":"")+'"><span>'+c[1]+"</span>"+c[0]+"<small>"+(kind?(c[2]===1?"cố định":"kiếm thêm"):(c[2]==="cd"?"cố định":"phát sinh"))+"</small></button>"}).join("");
 $$("#cg button",function(b){b.onclick=function(){cat=b.getAttribute("data-c");$$("#cg button",function(x){x.classList.toggle("on",x===b)})}});
 var qv=kind?[200000,500000,1000000,2000000]:[10000,20000,50000,100000,200000];
-$("#qs").innerHTML=qv.map(function(v){return '<button class="chip" data-v="'+v+'">+'+short(v)+"</button>"}).join("");
+$("#qs").innerHTML='<button class="chip" data-zf="a">000</button>'+qv.map(function(v){return '<button class="chip" data-v="'+v+'">+'+short(v)+"</button>"}).join("");
 $$("#qs .chip",function(b){b.onclick=function(){A.value=(num(A)+parseInt(b.getAttribute("data-v"),10)).toLocaleString("vi-VN")}});
 $("#k0").classList.toggle("on",!kind);$("#k1").classList.toggle("on",!!kind);
 $("#phl").hidden=!!kind;$("#pv").hidden=!!kind||!photo;$("#sv").textContent=ed?"Lưu thay đổi":(kind?"Lưu khoản thu":"Lưu khoản chi")}
@@ -269,7 +270,7 @@ $("#del").onclick=function(){if(!arm){arm=true;this.textContent="Chạm lần n�
 
 /* ---------- khoản phải trả ---------- */
 function newBill(){var td0=today(),dd0=td0.indexOf(mkey())===0?td0:mkey()+"-01";
-sheet('<h3>Thêm khoản phải trả</h3><div class="qs">'+["Tiền nhà","Trả góp","Thẻ tín dụng","Điện nước","Internet","Học phí"].map(function(n){return '<button class="chip" data-n="'+n+'">'+n+"</button>"}).join("")+'</div><input id="bn" class="f" placeholder="Tên khoản" maxlength="40"><input id="ba" class="amt" inputmode="numeric" placeholder="Số tiền"><p class="mu" style="margin:6px 0">Hạn trả (có thể là đầu tháng sau)</p><input id="bd" class="f" type="date" value="'+dd0+'"><button class="pri" id="bs">Lưu</button>');
+sheet('<h3>Thêm khoản phải trả</h3><div class="qs">'+["Tiền nhà","Trả góp","Thẻ tín dụng","Điện nước","Internet","Học phí"].map(function(n){return '<button class="chip" data-n="'+n+'">'+n+"</button>"}).join("")+'</div><input id="bn" class="f" placeholder="Tên khoản" maxlength="40"><input id="ba" class="amt" inputmode="numeric" placeholder="Số tiền"><div class="qs"><button class="chip" data-zf="ba">000</button></div><p class="mu" style="margin:6px 0">Hạn trả (có thể là đầu tháng sau)</p><input id="bd" class="f" type="date" value="'+dd0+'"><button class="pri" id="bs">Lưu</button>');
 $$("#shc .chip",function(b){b.onclick=function(){$("#bn").value=b.getAttribute("data-n")}});
 $("#ba").oninput=function(){fmt(this)};
 $("#bs").onclick=function(){var n=$("#bn").value.trim(),a=num($("#ba")),d=$("#bd").value;
@@ -278,12 +279,12 @@ var k=mkey();(bills[k]=bills[k]||[]).push({id:uid(),n:n,a:a,due:d,paid:false});s
 
 /* ---------- mục tiêu dài hạn ---------- */
 function newGoal(){var x=new Date();x.setMonth(x.getMonth()+6);var d6=x.getFullYear()+"-"+z(x.getMonth()+1)+"-"+z(x.getDate());
-sheet('<h3>Mục tiêu tiết kiệm</h3><input id="gn" class="f" placeholder="Muốn mua / làm gì? (VD: máy ảnh)" maxlength="40"><input id="gt" class="amt" inputmode="numeric" placeholder="Số tiền cần"><p class="mu" style="margin:6px 0">Muốn đạt trước ngày</p><input id="gd" class="f" type="date" value="'+d6+'"><input id="gs" class="f" inputmode="numeric" placeholder="Đã có sẵn (không bắt buộc)"><button class="pri" id="gb">Lưu</button>');
+sheet('<h3>Mục tiêu tiết kiệm</h3><input id="gn" class="f" placeholder="Muốn mua / làm gì? (VD: máy ảnh)" maxlength="40"><input id="gt" class="amt" inputmode="numeric" placeholder="Số tiền cần"><div class="qs"><button class="chip" data-zf="gt">000</button></div><p class="mu" style="margin:6px 0">Muốn đạt trước ngày</p><input id="gd" class="f" type="date" value="'+d6+'"><input id="gs" class="f" inputmode="numeric" placeholder="Đã có sẵn (không bắt buộc)"><button class="pri" id="gb">Lưu</button>');
 $("#gt").oninput=function(){fmt(this)};$("#gs").oninput=function(){fmt(this)};
 $("#gb").onclick=function(){var n=$("#gn").value.trim(),t=num($("#gt")),d=$("#gd").value;if(!n||!t||!d){toast("Nhập đủ tên, số tiền và hạn");return}
 set.goals.push({id:uid(),n:n,t:t,d:d,s:num($("#gs"))});save();closeSheet();render()}}
 function topUp(id){var g=set.goals.filter(function(x){return x.id===id})[0];if(!g)return;
-sheet('<h3>Nạp thêm cho "'+esc(g.n)+'"</h3><input id="gx" class="amt" inputmode="numeric" placeholder="Số tiền"><button class="pri" id="gk">Lưu</button>');
+sheet('<h3>Nạp thêm cho "'+esc(g.n)+'"</h3><input id="gx" class="amt" inputmode="numeric" placeholder="Số tiền"><div class="qs"><button class="chip" data-zf="gx">000</button></div><button class="pri" id="gk">Lưu</button>');
 $("#gx").oninput=function(){fmt(this)};setTimeout(function(){$("#gx").focus()},150);
 $("#gk").onclick=function(){var v=num($("#gx"));if(!v){toast("Nhập số tiền");return}g.s+=v;save();closeSheet();render();toast("Đã nạp "+money(v))}}
 
